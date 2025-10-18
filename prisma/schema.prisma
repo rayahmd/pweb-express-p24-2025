@@ -1,0 +1,74 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  // hapus baris output
+  // output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+    id String @id @default(cuid())
+    email String @unique
+    password String
+    name String
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+    transactions Transaction[]
+}
+
+
+model Genre {
+    id String @id @default(cuid())
+    name String @unique
+    description String?
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+    deletedAt DateTime?
+    books Book[]
+}
+
+
+model Book {
+    id String @id @default(cuid())
+    title String @unique
+    author String
+    description String?
+    price Decimal @db.Numeric(12,2)
+    stock Int @default(0)
+    genreId String
+    genre Genre @relation(fields: [genreId], references: [id])
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+    deletedAt DateTime?
+    items TransactionItem[]
+}
+
+
+model Transaction {
+    id String @id @default(cuid())
+    userId String
+    user User @relation(fields: [userId], references: [id])
+    total Decimal @db.Numeric(12,2)
+    createdAt DateTime @default(now())
+    items TransactionItem[]
+}
+
+
+model TransactionItem {
+    id String @id @default(cuid())
+    transactionId String
+    transaction Transaction @relation(fields: [transactionId], references: [id])
+    bookId String
+    book Book @relation(fields: [bookId], references: [id])
+    quantity Int
+    price Decimal @db.Numeric(12,2) // snapshot harga saat beli
+}
