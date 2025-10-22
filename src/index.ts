@@ -4,9 +4,10 @@ import cors from "cors";
 import morgan from "morgan";
 import { errorHandler } from "./utils/errors";
 import authRoutes from "./modules/auth.route";
-import genreRoutes from "./modules/genre/genre.route";
-import transactionRoutes from "./modules/transaction/transaction.route";
-import bookRoutes from "./modules/book/book.route";
+import bookRoutes from "./routes/bookRoutes";
+import { requireAuth } from "./middleware/auth";
+// import genreRoutes from "./modules/genre/genre.route";
+// import trxRoutes from "./modules/transaction/transaction.route";
 
 
 const app = express();
@@ -19,9 +20,9 @@ app.get("/health", (_req, res) => res.json({ ok: true }));
 
 
 app.use("/auth", authRoutes);
-app.use("/genre", genreRoutes);
-app.use("/transactions", transactionRoutes);
-app.use("/books", bookRoutes);
+app.use("/books", requireAuth, bookRoutes);
+// app.use("/genre", genreRoutes);
+// app.use("/transactions", trxRoutes);
 
 
 app.use(errorHandler);
