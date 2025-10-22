@@ -19,7 +19,7 @@ model User {
     id String @id @default(cuid())
     email String @unique
     password String
-    name String
+    username String
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
     transactions Transaction[]
@@ -42,7 +42,7 @@ model Book {
     title String @unique
     author String
     description String?
-    price Decimal @db.Numeric(12,2)
+    price Decimal @db.Decimal(12,2)
     stock Int @default(0)
     genreId String
     genre Genre @relation(fields: [genreId], references: [id])
@@ -57,7 +57,7 @@ model Transaction {
     id String @id @default(cuid())
     userId String
     user User @relation(fields: [userId], references: [id])
-    total Decimal @db.Numeric(12,2)
+    total Decimal @db.Decimal(12,2)
     createdAt DateTime @default(now())
     items TransactionItem[]
 }
@@ -70,5 +70,5 @@ model TransactionItem {
     bookId String
     book Book @relation(fields: [bookId], references: [id])
     quantity Int
-    price Decimal @db.Numeric(12,2) // snapshot harga saat beli
+    price Decimal @db.Decimal(12,2) // snapshot harga saat beli
 }

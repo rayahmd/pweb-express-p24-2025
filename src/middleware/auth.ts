@@ -16,3 +16,4 @@ export const requireAuth = (req: any, _res: any, next: any) => {
         next(new HttpError(401, "Invalid or expired token"));
     }
 };
+
