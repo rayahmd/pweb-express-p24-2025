@@ -17,3 +17,6 @@ export const requireAuth = (req: any, _res: any, next: any) => {
     }
 };
 
+// Alias untuk requireAuth
+export const authenticate = requireAuth;
+
