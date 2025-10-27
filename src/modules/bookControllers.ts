@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
-import prisma from '../../config/prisma';
+import prisma from '../config/prisma';
 
 // Helper: Build where clause (soft delete only)
 const buildBookWhereClause = (
@@ -24,10 +24,38 @@ const buildOrderByClause = (
 ): Prisma.BookOrderByWithRelationInput[] => {
   const orderBy: Prisma.BookOrderByWithRelationInput[] = [];
   if (orderByTitle && ['asc', 'desc'].includes(orderByTitle.toLowerCase())) {
-    orderBy.push({ title: orderByTitle.toUpperCase() as Prisma.SortOrder });
+    orderBy.push({ title: orderByTitle.toLowerCase() as Prisma.SortOrder });
   }
   if (orderBy.length === 0) orderBy.push({ createdAt: 'desc' });
   return orderBy;
+};
+
+// Helper: Validate input manually
+const validateBookInput = (data: any): { valid: boolean; message?: string } => {
+  const { price, stock, publication_year } = data;
+
+  // Validate price
+  if (price !== undefined) {
+    if (typeof price !== 'number' || price < 0 || !Number.isFinite(price)) {
+      return { valid: false, message: "Price must be a non-negative number" };
+    }
+  }
+
+  // Validate stock
+  if (stock !== undefined) {
+    if (!Number.isInteger(stock) || stock < 0) {
+      return { valid: false, message: "Stock must be a non-negative integer" };
+    }
+  }
+
+  // Validate publication_year
+  if (publication_year !== undefined) {
+    if (!Number.isInteger(publication_year) || publication_year < 1000 || publication_year > 2025) {
+      return { valid: false, message: "Publication year must be between 1000 and 2025" };
+    }
+  }
+
+  return { valid: true };
 };
 
 // POST /books
@@ -37,11 +65,13 @@ export const createBook = async (req: Request, res: Response) => {
       title,
       author,
       description,
+      publication_year,
       price,
       stock,
       genre_id,
     } = req.body;
 
+    // Required fields
     if (!title || !author || price === undefined || stock === undefined || !genre_id) {
       return res.status(400).json({
         success: false,
@@ -49,6 +79,16 @@ export const createBook = async (req: Request, res: Response) => {
       });
     }
 
+    // Manual validation
+    const validation = validateBookInput({ price, stock, publication_year });
+    if (!validation.valid) {
+      return res.status(400).json({
+        success: false,
+        message: validation.message,
+      });
+    }
+
+    // Cek duplikasi judul
     const existing = await prisma.book.findUnique({ where: { title } });
     if (existing) {
       return res.status(400).json({
@@ -57,6 +97,7 @@ export const createBook = async (req: Request, res: Response) => {
       });
     }
 
+    // Cek genre
     const genre = await prisma.genre.findUnique({ where: { id: genre_id, deletedAt: null } });
     if (!genre) {
       return res.status(404).json({
@@ -65,12 +106,14 @@ export const createBook = async (req: Request, res: Response) => {
       });
     }
 
+    // Simpan ke database
     const book = await prisma.book.create({
       data: {
         title,
         author,
         description,
-        price,
+        publicationYear: publication_year,
+        price: new Prisma.Decimal(price),
         stock,
         genreId: genre_id,
         createdAt: new Date(),
@@ -114,15 +157,15 @@ export const getAllBooks = async (req: Request, res: Response) => {
     ]);
 
     const totalPages = Math.ceil(total / limit);
-    const formatted = books.map((book:any) => ({
+    const formatted = books.map((book: any) => ({
       id: book.id,
       title: book.title,
-      writer: book.author,        // ← author → writer
-      publisher: "",              // ← tidak ada di skema
+      writer: book.author,
+      publisher: "",
       description: book.description,
-      publication_year: null,     // ← tidak ada di skema
+      publication_year: book.publicationYear,
       price: parseFloat(book.price.toString()),
-      stock_quantity: book.stock, // ← stock → stock_quantity
+      stock_quantity: book.stock,
       genre: book.genre.name,
     }));
 
@@ -171,13 +214,13 @@ export const getBooksByGenre = async (req: Request, res: Response) => {
     ]);
 
     const totalPages = Math.ceil(total / limit);
-    const formatted = books.map((book:any) => ({
+    const formatted = books.map((book: any) => ({
       id: book.id,
       title: book.title,
       writer: book.author,
       publisher: "",
       description: book.description,
-      publication_year: null,
+      publication_year: book.publicationYear,
       price: parseFloat(book.price.toString()),
       stock_quantity: book.stock,
       genre: book.genre.name,
@@ -219,7 +262,7 @@ export const getBookById = async (req: Request, res: Response) => {
         writer: book.author,
         publisher: "",
         description: book.description,
-        publication_year: null,
+        publication_year: book.publicationYear,
         price: parseFloat(book.price.toString()),
         stock_quantity: book.stock,
         genre: book.genre.name,
@@ -235,12 +278,21 @@ export const getBookById = async (req: Request, res: Response) => {
 export const updateBook = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { description, price, stock } = req.body;
+    const { description, price, stock, publication_year } = req.body;
 
-    if (description === undefined && price === undefined && stock === undefined) {
+    if (description === undefined && price === undefined && stock === undefined && publication_year === undefined) {
       return res.status(400).json({
         success: false,
-        message: "At least one field (description, price, stock) must be provided",
+        message: "At least one field (description, price, stock, publication_year) must be provided",
+      });
+    }
+
+    // Validasi input
+    const validation = validateBookInput({ price, stock, publication_year });
+    if (!validation.valid) {
+      return res.status(400).json({
+        success: false,
+        message: validation.message,
       });
     }
 
@@ -249,8 +301,9 @@ export const updateBook = async (req: Request, res: Response) => {
 
     const updateData: Prisma.BookUpdateInput = { updatedAt: new Date() };
     if (description !== undefined) updateData.description = description;
-    if (price !== undefined) updateData.price = price;
+    if (price !== undefined) updateData.price = new Prisma.Decimal(price);
     if (stock !== undefined) updateData.stock = stock;
+    if (publication_year !== undefined) updateData.publicationYear = publication_year;
 
     const updated = await prisma.book.update({
       where: { id },
